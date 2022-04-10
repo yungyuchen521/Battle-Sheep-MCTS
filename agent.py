@@ -93,12 +93,40 @@ class State:
             # is not at edge & direction not movable( = reached dest.), return immediately
             else:
                 return now_x, now_y
-
-    def _get_connected_regions(self):
+            
+    def _get_connected_regions(self) -> dict:
+        edge_list = self.get_edge()
+        groups = UnionFind()
         
-        ##############################################################
+        # initialize the groups
+        #g = [[Cell(-1,-1,-1,-1) for j in range(12)] for i in range(12)] # g[0][0] is the group leader cell of (0, 0)
         
-        pass
+        for edge in edge_list:
+            groups.join(edge[0], edge[1])
+        
+        return groups.get_groups()
+    
+    # return all cell own by any player
+    def get_owned_cell(self) -> list:
+        cell_list = []
+        for i in range(12):
+            for j in range(12):
+                if(self.state.mapState[i][j] != -1 and self.state.mapState[i][j] != 0):
+                    cell = Cell(i, j, self.state.mapState[i][j], self.state.sheepState[i][j])
+                    cell_list.append(cell)
+        
+        return cell_list
+    
+    # return all edge (neighbor relations) between same pid
+    def get_edge(self) -> list:
+        edge_list = []
+        cell_list = self.get_owned_cell()
+        for c1 in cell_list:
+            for c2 in cell_list:
+                if(c1 != c2 and self._connected(c1, c2) and c1.pid == c2.pid):
+                    edge_list.append((c1, c2))
+                    
+        return edge_list
 
     # check if 2 cells are connected, note: if c1 = c2, return True
     def _connected(self, c1: Cell, c2: Cell) -> bool:
@@ -172,3 +200,102 @@ class Agent:
             return False
             
         return True
+
+    class UnionFind:
+    """
+    Notes:
+        unionfind data structure specialized for finding connected regions.
+    Attributes:
+        parent (dict): Each group parent
+        rank (dict): Each group rank
+        groups (dict): Stores the groups and chain of cells
+        ignored (list): The neighborhood of board edges has to be ignored
+    """
+
+    def __init__(self) -> None:
+        """
+        Initialize parent and rank as empty dictionaries, we will
+        lazily add items as necessary.
+        """
+        self.parent = {}
+        self.rank = {}
+        self.groups = {}
+        self.ignored = []
+
+    def join(self, x : Cell, y: Cell) -> bool:
+        """
+        Merge the groups of x and y if they were not already,
+        return False if they were already merged, true otherwise
+        
+        """
+        rep_x = self.find(x)
+        rep_y = self.find(y)
+
+        if rep_x == rep_y:
+            return False
+        if self.rank[rep_x] < self.rank[rep_y]:
+            self.parent[rep_x] = rep_y
+
+            self.groups[rep_y].extend(self.groups[rep_x])
+            del self.groups[rep_x]
+        elif self.rank[rep_x] > self.rank[rep_y]:
+            self.parent[rep_y] = rep_x
+
+            self.groups[rep_x].extend(self.groups[rep_y])
+            del self.groups[rep_y]
+        else:
+            self.parent[rep_x] = rep_y
+            self.rank[rep_y] += 1
+
+            self.groups[rep_y].extend(self.groups[rep_x])
+            del self.groups[rep_x]
+
+        return True
+
+    def find(self, x: Cell):
+        """
+        Get the representative element associated with the set in
+        which element x resides. Uses grandparent compression to compression
+        the tree on each find operation so that future find operations are faster.
+        """
+        if x not in self.parent:
+            self.parent[x] = x
+            self.rank[x] = 0
+            if x in self.ignored:
+                self.groups[x] = []
+            else:
+                self.groups[x] = [x]
+
+        px = self.parent[x]
+        if x == px:
+            return x
+
+        gx = self.parent[px]
+        if gx == px:
+            return px
+
+        self.parent[x] = gx
+
+        return self.find(gx)
+
+    def connected(self, x, y) -> bool:
+        """
+        Check if two elements are in the same group.
+        Args:
+            x (tuple): game board cell
+            y (tuple): game board cell
+        """
+        return self.find(x) == self.find(y)
+
+    def set_ignored_elements(self, ignore):
+        """
+        Elements in ignored, edges has to be ignored
+        """
+        self.ignored = ignore
+
+    def get_groups(self) -> dict:
+        """
+        Returns:
+            Groups
+        """
+        return self.groups
