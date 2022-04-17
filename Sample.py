@@ -1,8 +1,9 @@
 import STcpClient
+from meta import GameMeta
 import numpy as np
 import random
 from evaluate import *
-from agent import *
+from mcts import UctMctsAgent
 
 '''
     選擇起始位置
@@ -16,10 +17,12 @@ from agent import *
 
 def InitPos(mapStat):
     init_pos = [0, 0]
-    '''
-        Write your code here
-
-    '''
+    
+    #Write your code here
+    
+    # not using mcts here
+    # pick a position with as many available directions as possible
+    
     return init_pos
 
 
@@ -43,17 +46,31 @@ def InitPos(mapStat):
 '''
 def GetStep(playerID, mapStat, sheepStat):
     step = [(0, 0), 0, 1]
-    '''
-    Write your code here
     
-    '''
-    return step
+    # Write your code here
+    
+    newState = State(mapState=mapStat, sheepState=sheepStat)
+
+    # ===========================================================
+    # find the moves needed to go from previous state to newState
+    # play the agent correspondingly
+    # ===========================================================
+    
+    global agent
+    agent.search(time_budget=5)
+    best_child = agent.get_best_child()
+    agent.move_to(best_child)
+
+    return best_child.move.getStep()
 
 
 # player initial
 (id_package, playerID, mapStat) = STcpClient.GetMap()
 init_pos = InitPos(mapStat)
 STcpClient.SendInitPos(id_package, init_pos)
+
+global agent
+agent = UctMctsAgent()
 
 # start game
 while (True):
